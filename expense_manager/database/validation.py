@@ -6,6 +6,7 @@ from .schema import (
     CREATE_INDEXES,
     SCHEMA_VERSION,
 )
+
 # ==========================================================================================
 # ==========================================================================================
 
@@ -15,6 +16,7 @@ from .schema import (
 # Purpose: Verifies that a selected database has the required schema
 # ==========================================================================================
 # ==========================================================================================
+
 
 def _normalize_sql(sql: str) -> str:
     """Normalize SQL formatting for schema comparison."""
@@ -33,9 +35,7 @@ def validate_schema(connection: sqlite3.Connection) -> None:
         ValueError: If the schema is incompatible.
         sqlite3.Error: If SQLite cannot inspect the file.
     """
-    version = connection.execute(
-        "PRAGMA user_version"
-    ).fetchone()[0]
+    version = connection.execute("PRAGMA user_version").fetchone()[0]
 
     if version != SCHEMA_VERSION:
         raise ValueError(
@@ -43,22 +43,16 @@ def validate_schema(connection: sqlite3.Connection) -> None:
             f"Expected version {SCHEMA_VERSION}."
         )
 
-    row = connection.execute(
-        """
+    row = connection.execute("""
         SELECT sql
         FROM sqlite_master
         WHERE type = 'table' AND name = 'expense'
-        """
-    ).fetchone()
+        """).fetchone()
 
     if row is None:
-        raise ValueError(
-            "Invalid database: missing 'expense' table."
-        )
+        raise ValueError("Invalid database: missing 'expense' table.")
 
-    if _normalize_sql(row[0]) != _normalize_sql(
-        CREATE_EXPENSE_TABLE
-    ):
+    if _normalize_sql(row[0]) != _normalize_sql(CREATE_EXPENSE_TABLE):
         raise ValueError(
             "Invalid database: expense table definition "
             "does not match the required schema."
@@ -84,23 +78,13 @@ def validate_schema(connection: sqlite3.Connection) -> None:
             (index_name,),
         ).fetchone()
 
-        if (
-            index_row is None
-            or _normalize_sql(index_row[0])
-            != _normalize_sql(statement)
-        ):
-            raise ValueError(
-                f"Missing or invalid index: {index_name}"
-            )
+        if index_row is None or _normalize_sql(index_row[0]) != _normalize_sql(statement):
+            raise ValueError(f"Missing or invalid index: {index_name}")
 
-    integrity = connection.execute(
-        "PRAGMA integrity_check"
-    ).fetchone()[0]
+    integrity = connection.execute("PRAGMA integrity_check").fetchone()[0]
 
     if integrity != "ok":
-        raise ValueError(
-            f"Database integrity check failed: {integrity}"
-        )
+        raise ValueError(f"Database integrity check failed: {integrity}")
 
 
 # ==========================================================================================

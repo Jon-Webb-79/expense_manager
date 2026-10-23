@@ -3,6 +3,7 @@ from pathlib import Path
 
 from .schema import create_schema
 from .validation import validate_schema
+
 # ==========================================================================================
 # ==========================================================================================
 
@@ -30,14 +31,10 @@ def create_database(path: str | Path) -> sqlite3.Connection:
     db_path = Path(path).expanduser().resolve()
 
     if db_path.exists():
-        raise FileExistsError(
-            f"Database already exists: {db_path}"
-        )
+        raise FileExistsError(f"Database already exists: {db_path}")
 
     if not db_path.parent.is_dir():
-        raise FileNotFoundError(
-            f"Directory does not exist: {db_path.parent}"
-        )
+        raise FileNotFoundError(f"Directory does not exist: {db_path.parent}")
 
     connection = sqlite3.connect(db_path)
     try:
@@ -70,9 +67,7 @@ def open_database(path: str | Path) -> sqlite3.Connection:
     db_path = Path(path).expanduser().resolve()
 
     if not db_path.is_file():
-        raise FileNotFoundError(
-            f"Database not found: {db_path}"
-        )
+        raise FileNotFoundError(f"Database not found: {db_path}")
 
     # URI mode=rw prevents accidental file creation.
     connection = sqlite3.connect(

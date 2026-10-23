@@ -3,6 +3,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from .schema import CATEGORIES
+
 # ==========================================================================================
 # ==========================================================================================
 
@@ -12,6 +13,7 @@ from .schema import CATEGORIES
 # Purpose: Provides functions to insert, retrieve, update, and delete expenses
 # ==========================================================================================
 # ==========================================================================================
+
 
 class ExpenseRepository:
     """Provide database operations for expense records."""
@@ -36,21 +38,16 @@ class ExpenseRepository:
         sub_type = data.get("sub_type", "NA")
 
         if expense_type not in CATEGORIES:
-            raise ValueError(
-                f"Invalid expense type: {expense_type}"
-            )
+            raise ValueError(f"Invalid expense type: {expense_type}")
 
         if sub_type not in CATEGORIES[expense_type]:
             raise ValueError(
-                f"Invalid subtype '{sub_type}' "
-                f"for type '{expense_type}'"
+                f"Invalid subtype '{sub_type}' " f"for type '{expense_type}'"
             )
 
         cost = data.get("cost")
         if type(cost) is not int:
-            raise ValueError(
-                "Cost must be an integer number of cents"
-            )
+            raise ValueError("Cost must be an integer number of cents")
 
         validated = data.get("validated", 0)
         if type(validated) not in (int, bool):
@@ -79,8 +76,7 @@ class ExpenseRepository:
         values = tuple(data[field] for field in self.FIELDS)
 
         cursor = self.connection.execute(
-            f"INSERT INTO expense ({columns}) "
-            f"VALUES ({placeholders})",
+            f"INSERT INTO expense ({columns}) " f"VALUES ({placeholders})",
             values,
         )
 
@@ -95,13 +91,11 @@ class ExpenseRepository:
 
     def get_all_expenses(self):
         """Retrieve expenses ordered by purchase date."""
-        return self.connection.execute(
-            """
+        return self.connection.execute("""
             SELECT *
             FROM expense
             ORDER BY purchase_date DESC, id DESC
-            """
-        ).fetchall()
+            """).fetchall()
 
     def update_expense(
         self,
@@ -116,27 +110,19 @@ class ExpenseRepository:
 
         unknown = set(kwargs) - set(self.FIELDS)
         if unknown:
-            raise ValueError(
-                f"Unknown expense fields: {sorted(unknown)}"
-            )
+            raise ValueError(f"Unknown expense fields: {sorted(unknown)}")
 
-        data = {
-            field: existing[field]
-            for field in self.FIELDS
-        }
+        data = {field: existing[field] for field in self.FIELDS}
         data.update(kwargs)
 
         self._validate_expense(data)
 
-        assignments = ", ".join(
-            f"{field} = ?" for field in self.FIELDS
-        )
+        assignments = ", ".join(f"{field} = ?" for field in self.FIELDS)
         values = [data[field] for field in self.FIELDS]
         values.append(expense_id)
 
         cursor = self.connection.execute(
-            f"UPDATE expense SET {assignments} "
-            "WHERE id = ?",
+            f"UPDATE expense SET {assignments} " "WHERE id = ?",
             values,
         )
 

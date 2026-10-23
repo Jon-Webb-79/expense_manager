@@ -1,0 +1,169 @@
+
+# ============================================
+# Python Bytecode and Cache
+# ============================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ============================================
+# Python Packaging and Build Artifacts
+# ============================================
+
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# ============================================
+# Virtual Environments
+# ============================================
+
+.venv/
+venv/
+env/
+ENV/
+
+# ============================================
+# Poetry
+# ============================================
+
+# Keep poetry.lock tracked for reproducibility.
+# poetry.lock
+
+# ============================================
+# Testing and Coverage
+# ============================================
+
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+junit.xml
+test-results/
+
+# ============================================
+# Static Analysis and Formatting
+# ============================================
+
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.dmypy.json
+dmypy.json
+.cache/
+
+# ============================================
+# SQLite Databases and Temporary Files
+# ============================================
+
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# SQLite backups
+*.db.bak
+*.sqlite.bak
+*.sqlite3.bak
+
+# ============================================
+# Test Data
+# ============================================
+
+# Ignore generated test data, but retain
+# the directory structure.
+data/test/*
+!data/test/.gitkeep
+
+# ============================================
+# PyQt6
+# ============================================
+
+# Generated Qt resources
+*_rc.py
+
+# Generated Qt UI files
+ui_*.py
+
+# Qt Creator user-specific settings
+*.pro.user
+*.pro.user.*
+
+# ============================================
+# Sphinx Documentation
+# ============================================
+
+docs/_build/
+docs/sphinx/_build/
+docs/sphinx/build/
+*.doctree
+
+# ============================================
+# IDE and Editor Settings
+# ============================================
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# ============================================
+# Operating System Files
+# ============================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+.Trash-*/
+.directory
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+
+# ============================================
+# Logs and Temporary Files
+# ============================================
+
+*.log
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# ============================================
+# Environment Variables and Secrets
+# ============================================
+
+.env
+.env.*
+!.env.example
+
+*.pem
+*.key
+

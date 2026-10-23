@@ -113,7 +113,7 @@ CATEGORIES = {
     "MEDICAL": ("DOCTOR", "HOSPITAL", "DRUGS"),
     "MISC": ("NA",),
     "ALCOHOL": ("NA",),
-)
+}
 
 
 def create_schema(connection):
