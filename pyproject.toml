@@ -1,73 +1,167 @@
 
+# ==========================================================================================
+# File:    pyproject.toml
+# Purpose: Project configuration for Expense Manager
+# ==========================================================================================
+
+[project]
+name = "expense_manager"
+version = "0.1.0"
+description = "A desktop application for managing personal expenses using SQLite and PyQt6."
+readme = "README.rst"
+requires-python = ">=3.13,<3.14"
+license = "MIT"
+
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 3 - Alpha",
     "Programming Language :: Python :: 3",
-	"Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: MacOS",
-	"Operating System :: POSIX :: Linux",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Office/Business :: Financial :: Accounting",
 ]
 
+dependencies = [
+    "PyQt6>=6.7,<7.0",
+]
+
+[project.optional-dependencies]
+# Reserved for future optional features.
+
+[project.urls]
+Homepage = "https://github.com/Jon-Webb-79/expense_manager"
+Repository = "https://github.com/Jon-Webb-79/expense_manager"
+Issues = "https://github.com/Jon-Webb-79/expense_manager/issues"
+
+
+# ==========================================================================================
+# Poetry Build System
+# ==========================================================================================
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{ include = "expense_manager" }]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0,<10.0",
+    "pytest-qt>=4.4,<5.0",
+    "tox>=4.0,<5.0",
+    "mypy>=1.0,<2.0",
+    "black>=24.0",
+    "isort>=5.0",
+    "pre-commit>=4.0,<5.0",
+]
+
+
+# ==========================================================================================
+# isort
+# ==========================================================================================
+
 [tool.isort]
-profile = 'black'
+profile = "black"
+line_length = 90
+py_version = 313
+skip_gitignore = true
+
+
+# ==========================================================================================
+# Black
+# ==========================================================================================
 
 [tool.black]
 line-length = 90
-target-version = ['py313']
+target-version = ["py313"]
 include = '\.pyi?$'
-exclude = '''
+
+extend-exclude = '''
 /(
     \.eggs
   | \.git
   | \.hg
   | \.mypy_cache
+  | \.pytest_cache
   | \.tox
   | \.venv
   | _build
-  | buck-out
   | build
   | dist
-  # The following are specific to Black, you probably don't want those.
-  | blib2to3
-  | tests/data
-  | profiling
+  | docs/sphinx/_build
 )/
 '''
 
+
+# ==========================================================================================
+# tox
+# ==========================================================================================
+
 [tool.tox]
 legacy_tox_ini = """
-	[tox]
-    env_list = py313, mypy, lint
+[tox]
+env_list = py313, mypy, lint
 
-    [testenv]
-	description = run tests with pytest
-    deps = pytest
-    commands = pytest tests -v {posargs}
+[testenv]
+description = Run unit tests with pytest
+base_python = python3.13
+deps =
+    pytest
+    pytest-qt
+commands =
+    pytest tests -v {posargs}
 
-	[testeng:mypy]
-	deps = mypy
-	commands = mypy expense_manager
+[testenv:mypy]
+description = Run static type analysis
+base_python = python3.13
+deps =
+    mypy
+    PyQt6
+commands =
+    mypy expense_manager
 
-	[testenv:lint]
-	deps = pre-commit
-	commands = pre-commit run --all-files --show-diff-on-failure
+[testenv:lint]
+description = Run pre-commit formatting and linting
+base_python = python3.13
+deps =
+    pre-commit
+commands =
+    pre-commit run --all-files --show-diff-on-failure
 
-	[gh-actions]
-	python =
-		3.10: py313, mypy, lint
+[gh-actions:env]
+PYTHON_VERSION =
+    3.13: py313, mypy, lint
 """
 
+
+# ==========================================================================================
+# mypy
+# ==========================================================================================
+
 [tool.mypy]
+python_version = "3.13"
+
+files = ["expense_manager"]
 exclude = ["docs", "tests"]
+
 check_untyped_defs = true
 disallow_any_generics = true
 disallow_incomplete_defs = true
 disallow_untyped_defs = true
 no_implicit_optional = true
 
+warn_return_any = true
+warn_unused_ignores = true
+show_error_codes = true
+
+
+# ==========================================================================================
+# pytest
+# ==========================================================================================
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 console_output_style = "progress"
+addopts = "-ra"
 
-[project.urls]
-"Homepage" = "https://github.com/Jon-Webb-79/expense_manager"

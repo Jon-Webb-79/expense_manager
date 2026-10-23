@@ -1,24 +1,37 @@
-# Import necessary packages here
+import sys
 
-# - If a package and a module within the package is to be imported
-#   uncomment the following lines where dir is the directory containing
-#   the source files.  These lines should go above the module imports
-# import sys
-# import os
-# sys.path.insert(1, os.path.abspath(dir))
+from PyQt6.QtWidgets import QApplication
+
+from expense_manager.controllers.expense_controller import ExpenseController
+from expense_manager.views.main_window import MainWindow
 # ==========================================================================================
 # ==========================================================================================
 
 # File:    main.py
 # Date:    October 21, 2026
 # Author:  Jonathan A. Webb
-# Purpose: Describe the purpose of functions of this file
+# Purpose: Application entry point for Expense Manager
 # ==========================================================================================
 # ==========================================================================================
-# Insert Code here
 
 
+def main() -> int:
+    """Initialize and execute the Expense Manager application."""
+    app = QApplication(sys.argv)
+    app.setApplicationName("Expense Manager")
 
+    window = MainWindow()
+    controller = ExpenseController(window)
+
+    app.aboutToQuit.connect(controller.close)
+
+    window.show()
+
+    return app.exec()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
 # ==========================================================================================
 # ==========================================================================================
 # eof
