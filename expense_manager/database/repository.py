@@ -1,9 +1,9 @@
 import sqlite3
-from collections.abc import Mapping
-from typing import Any
+from dataclasses import replace
+
+from expense_manager.models.expense import Expense
 
 from .schema import CATEGORIES
-
 # ==========================================================================================
 # ==========================================================================================
 
@@ -16,124 +16,175 @@ from .schema import CATEGORIES
 
 
 class ExpenseRepository:
-    """Provide database operations for expense records."""
+    """Provide CRUD operations for expense records."""
 
-    FIELDS = (
-        "purchase_date",
-        "vendor",
-        "cost",
-        "type",
-        "sub_type",
-        "validated",
-        "description",
-    )
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        """Initialize the repository.
 
-    def __init__(self, connection: sqlite3.Connection):
+        Args:
+            connection: An open SQLite database connection.
+        """
         self.connection = connection
+        self.connection.row_factory = sqlite3.Row
 
     @staticmethod
-    def _validate_expense(data: Mapping[str, Any]) -> None:
-        """Validate expense category and basic data types."""
-        expense_type = data.get("type")
-        sub_type = data.get("sub_type", "NA")
+    def _row_to_expense(row: sqlite3.Row) -> Expense:
+        """Convert a SQLite row into an Expense object."""
+        return Expense(
+            id=row["id"],
+            entry_date=row["entry_date"],
+            purchase_date=row["purchase_date"],
+            vendor=row["vendor"],
+            cost=row["cost"],
+            type=row["type"],
+            sub_type=row["sub_type"],
+            validated=bool(row["validated"]),
+            description=row["description"],
+        )
 
-        if expense_type not in CATEGORIES:
-            raise ValueError(f"Invalid expense type: {expense_type}")
-
-        if sub_type not in CATEGORIES[expense_type]:
+    @staticmethod
+    def _validate_expense(expense: Expense) -> None:
+        """Validate an expense before database insertion or update."""
+        if expense.type not in CATEGORIES:
             raise ValueError(
-                f"Invalid subtype '{sub_type}' " f"for type '{expense_type}'"
+                f"Invalid expense type: {expense.type}"
             )
 
-        cost = data.get("cost")
-        if type(cost) is not int:
-            raise ValueError("Cost must be an integer number of cents")
+        if expense.sub_type not in CATEGORIES[expense.type]:
+            raise ValueError(
+                f"Invalid subtype '{expense.sub_type}' "
+                f"for type '{expense.type}'"
+            )
 
-        validated = data.get("validated", 0)
-        if type(validated) not in (int, bool):
-            raise ValueError("Validated must be 0 or 1")
+        if type(expense.cost) is not int:
+            raise ValueError(
+                "Cost must be an integer number of cents"
+            )
 
-        if validated not in (0, 1):
-            raise ValueError("Validated must be 0 or 1")
+        if type(expense.validated) is not bool:
+            raise ValueError(
+                "Validated must be a boolean"
+            )
 
-    def add_expense(self, **kwargs: Any) -> int:
-        """Insert an expense and return its assigned ID."""
-        data = {
-            "purchase_date": kwargs["purchase_date"],
-            "vendor": kwargs["vendor"],
-            "cost": kwargs["cost"],
-            "type": kwargs["type"],
-            "sub_type": kwargs.get("sub_type", "NA"),
-            "validated": kwargs.get("validated", 0),
-            "description": kwargs.get("description"),
-        }
+    def add_expense(self, expense: Expense) -> int:
+        """Insert an expense and return its database ID.
 
-        self._validate_expense(data)
+        Args:
+            expense: Expense object to insert.
 
-        columns = ", ".join(self.FIELDS)
-        placeholders = ", ".join("?" for _ in self.FIELDS)
-
-        values = tuple(data[field] for field in self.FIELDS)
+        Returns:
+            Newly assigned expense ID.
+        """
+        self._validate_expense(expense)
 
         cursor = self.connection.execute(
-            f"INSERT INTO expense ({columns}) " f"VALUES ({placeholders})",
-            values,
+            """
+            INSERT INTO expense (
+                purchase_date,
+                vendor,
+                cost,
+                type,
+                sub_type,
+                validated,
+                description
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                expense.purchase_date,
+                expense.vendor,
+                expense.cost,
+                expense.type,
+                expense.sub_type,
+                int(expense.validated),
+                expense.description,
+            ),
         )
+
+        if cursor.lastrowid is None:
+            raise sqlite3.DatabaseError(
+                "Failed to retrieve inserted expense ID"
+            )
 
         return cursor.lastrowid
 
-    def get_expense(self, expense_id: int):
-        """Retrieve an expense by ID, or None if absent."""
-        return self.connection.execute(
+    def get_expense(self, expense_id: int) -> Expense | None:
+        """Retrieve an expense by its database ID."""
+        row = self.connection.execute(
             "SELECT * FROM expense WHERE id = ?",
             (expense_id,),
         ).fetchone()
 
-    def get_all_expenses(self):
-        """Retrieve expenses ordered by purchase date."""
-        return self.connection.execute("""
+        if row is None:
+            return None
+
+        return self._row_to_expense(row)
+
+    def get_all_expenses(self) -> list[Expense]:
+        """Retrieve all expenses ordered by purchase date."""
+        rows = self.connection.execute(
+            """
             SELECT *
             FROM expense
             ORDER BY purchase_date DESC, id DESC
-            """).fetchall()
+            """
+        ).fetchall()
 
-    def update_expense(
-        self,
-        expense_id: int,
-        **kwargs: Any,
-    ) -> bool:
-        """Update an expense using its complete record values."""
-        existing = self.get_expense(expense_id)
+        return [
+            self._row_to_expense(row)
+            for row in rows
+        ]
 
-        if existing is None:
-            return False
+    def update_expense(self, expense: Expense) -> bool:
+        """Update an existing expense.
 
-        unknown = set(kwargs) - set(self.FIELDS)
-        if unknown:
-            raise ValueError(f"Unknown expense fields: {sorted(unknown)}")
+        Args:
+            expense: Expense containing updated field values.
 
-        data = {field: existing[field] for field in self.FIELDS}
-        data.update(kwargs)
+        Returns:
+            True if the expense was updated, otherwise False.
+        """
+        if expense.id is None:
+            raise ValueError(
+                "Cannot update an expense without an ID"
+            )
 
-        self._validate_expense(data)
-
-        assignments = ", ".join(f"{field} = ?" for field in self.FIELDS)
-        values = [data[field] for field in self.FIELDS]
-        values.append(expense_id)
+        self._validate_expense(expense)
 
         cursor = self.connection.execute(
-            f"UPDATE expense SET {assignments} " "WHERE id = ?",
-            values,
+            """
+            UPDATE expense
+            SET
+                purchase_date = ?,
+                vendor = ?,
+                cost = ?,
+                type = ?,
+                sub_type = ?,
+                validated = ?,
+                description = ?
+            WHERE id = ?
+            """,
+            (
+                expense.purchase_date,
+                expense.vendor,
+                expense.cost,
+                expense.type,
+                expense.sub_type,
+                int(expense.validated),
+                expense.description,
+                expense.id,
+            ),
         )
 
         return cursor.rowcount > 0
 
     def delete_expense(self, expense_id: int) -> bool:
-        """Delete an expense by ID."""
+        """Delete an expense using its database ID."""
         cursor = self.connection.execute(
             "DELETE FROM expense WHERE id = ?",
             (expense_id,),
         )
+
         return cursor.rowcount > 0
 
 

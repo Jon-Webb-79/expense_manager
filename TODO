@@ -1,0 +1,31 @@
+Step 1 — Establish the application architecture
+
+Create the initial package structure and define the responsibilities of the Model, View, and Controller. No substantial implementation is necessary yet.
+
+
+
+
+Step 2 — Implement database management
+
+Create the SQLite schema, database creation/opening functions, and schema validation. Write unit tests to verify the database constraints.
+
+
+
+
+Step 3 — Implement transaction operations
+
+Develop and test the functions for adding, retrieving, updating, and deleting expenses, independently of the GUI.
+
+
+
+
+Step 4 — Implement the PyQt6 interface
+
+Create the main window, editable table, dependent dropdowns, menus, and description editor.
+
+
+
+
+Step 5 — Integrate and test
+
+Connect the GUI to the database operations, implement saving and discarding changes, and test the complete application.
