@@ -299,8 +299,9 @@ class ExpenseController:
     # Expense Reporting
     # ======================================================================================
 
+
     def show_expense_summary(self) -> None:
-        """Open the expense summary reporting dialog."""
+        """Open the tabbed expense reporting dialog."""
         if self.repository is None:
             self.window.show_error(
                 "No Database",
@@ -312,9 +313,9 @@ class ExpenseController:
             QMessageBox.information(
                 self.window,
                 "Unsaved Changes",
-                "The report uses saved database records only.\n\n"
+                "The reports use saved database records only.\n\n"
                 "Any unsaved expense changes will not appear "
-                "in the report.",
+                "in the reports.",
             )
 
         dialog = ExpenseSummaryDialog(self.window)
@@ -323,17 +324,16 @@ class ExpenseController:
             lambda checked=False: self.generate_expense_summary(dialog)
         )
 
-        # Populate the report using the dialog's default dates.
+        # Generate both reports for the initial date range.
         self.generate_expense_summary(dialog)
 
-        # Keep the dialog open until the user closes it.
         dialog.exec()
 
     def generate_expense_summary(
         self,
         dialog: ExpenseSummaryDialog,
     ) -> None:
-        """Retrieve and display totals for the selected date range."""
+        """Generate category and vendor reports for the same dates."""
         if self.repository is None:
             return
 
@@ -348,9 +348,19 @@ class ExpenseController:
             return
 
         try:
-            summaries = self.repository.get_expense_summary(
+            expense_summaries = self.repository.get_expense_summary(
                 start_date,
                 end_date,
+            )
+
+            vendor_summaries = self.repository.get_vendor_summary(
+                start_date,
+                end_date,
+            )
+
+            dialog.display_reports(
+                expense_summaries,
+                vendor_summaries,
             )
 
         except (sqlite3.Error, ValueError) as exc:
@@ -359,14 +369,7 @@ class ExpenseController:
                 "Report Generation Failed",
                 str(exc),
             )
-            return
-
-        dialog.display_summary(summaries)
-
-        if not summaries:
-            dialog.grand_total_label.setText(
-                "Net Total: $0.00 (No transactions)"
-            )
+    
 
     # ======================================================================================
     # Application Shutdown

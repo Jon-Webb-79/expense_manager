@@ -1,5 +1,6 @@
 import sqlite3
 from datetime import date
+from expense_manager.models.vendor_summary import VendorSummary
 
 from expense_manager.models.expense import Expense
 from expense_manager.models.expense_summary import ExpenseSummary
@@ -65,6 +66,34 @@ class ExpenseRepository:
             raise ValueError(
                 "Validated must be a boolean"
             )
+
+    @staticmethod
+    def _validate_date_range(
+        start_date: str,
+        end_date: str,
+    ) -> None:
+        """Validate an inclusive reporting date range."""
+        try:
+            start = date.fromisoformat(start_date)
+            end = date.fromisoformat(end_date)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "Dates must use YYYY-MM-DD format"
+            ) from exc
+
+        if (
+            start.isoformat() != start_date
+            or end.isoformat() != end_date
+        ):
+            raise ValueError(
+                "Dates must use YYYY-MM-DD format"
+            )
+
+        if start > end:
+            raise ValueError(
+                "Start date cannot be later than end date"
+            )
+
 
     # ======================================================================================
     # CRUD Operations
@@ -219,27 +248,8 @@ class ExpenseRepository:
             ValueError: If either date is invalid or the date
                 range is reversed.
         """
-        try:
-            start = date.fromisoformat(start_date)
-            end = date.fromisoformat(end_date)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(
-                "Dates must use YYYY-MM-DD format"
-            ) from exc
-
-        if (
-            start.isoformat() != start_date
-            or end.isoformat() != end_date
-        ):
-            raise ValueError(
-                "Dates must use YYYY-MM-DD format"
-            )
-
-        if start > end:
-            raise ValueError(
-                "Start date cannot be later than end date"
-            )
-
+        self._validate_date_range(start_date, end_date)
+       
         rows = self.connection.execute(
             """
             SELECT
@@ -265,6 +275,54 @@ class ExpenseRepository:
             for row in rows
         ]
 
+
+    def get_vendor_summary(
+        self,
+        start_date: str,
+        end_date: str,
+    ) -> list[VendorSummary]:
+        """Calculate totals grouped by vendor for a date range.
+
+        Both start_date and end_date are inclusive.
+
+        Costs are summed as signed integer cents, so refunds
+        and positive income offset negative expenses.
+
+        Args:
+            start_date: First purchase date to include.
+            end_date: Last purchase date to include.
+
+        Returns:
+            VendorSummary records ordered by total_cents
+            ascending, then vendor name.
+
+        Raises:
+            ValueError: If the reporting dates are invalid.
+        """
+        self._validate_date_range(start_date, end_date)
+
+        rows = self.connection.execute(
+            """
+            SELECT
+                vendor,
+                SUM(cost) AS total_cents,
+                COUNT(*) AS transaction_count
+            FROM expense
+            WHERE purchase_date BETWEEN ? AND ?
+            GROUP BY vendor
+            ORDER BY total_cents ASC, vendor ASC
+            """,
+            (start_date, end_date),
+        ).fetchall()
+
+        return [
+            VendorSummary(
+                vendor=row["vendor"],
+                total_cents=row["total_cents"],
+                transaction_count=row["transaction_count"],
+            )
+            for row in rows
+        ]
 
 # ==========================================================================================
 # ==========================================================================================

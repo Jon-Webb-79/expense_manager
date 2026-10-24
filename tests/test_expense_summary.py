@@ -22,7 +22,7 @@ def dialog(qtbot):
 
 def test_dialog_initialization(dialog):
     """Verify that the dialog initializes correctly."""
-    assert dialog.windowTitle() == "Expense Summary"
+    assert dialog.windowTitle() == "Expense Reports"
     assert dialog.summary_model.rowCount() == 0
     assert dialog.grand_total_label.text() == "Net Total: $0.00"
 
