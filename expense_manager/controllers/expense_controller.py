@@ -123,6 +123,9 @@ class ExpenseController:
 
         path = Path(filename)
 
+        if not path.suffix:
+            path = path.with_suffix(".db")
+
         try:
             connection = create_database(path)
             self._activate_database(connection, path)
