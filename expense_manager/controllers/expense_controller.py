@@ -36,10 +36,14 @@ class ExpenseController:
         self.database_path: Path | None = None
 
         self.model = window.table_model
+        self.window.table.itemDelegate().vendor_provider = (
+            self.get_vendor_names
+        )
         self.window.confirm_close = self.confirm_discard
 
         self._connect_actions()
         self._update_actions()
+
 
     def _connect_actions(self) -> None:
         """Connect view actions to controller methods."""
@@ -220,7 +224,10 @@ class ExpenseController:
         if self.repository is None:
             return
 
-        dialog = ExpenseDialog(self.window)
+        dialog = ExpenseDialog(
+            self.window,
+            vendors=self.get_vendor_names(),
+        )
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.model.add_expense(dialog.get_expense())
@@ -369,6 +376,16 @@ class ExpenseController:
                 "Report Generation Failed",
                 str(exc),
             )
+
+
+    def get_vendor_names(self) -> list[str]:
+        """Return vendor names from the current working expense table."""
+        return [
+            expense.vendor
+            for expense in self.model.expenses
+            if expense.vendor
+        ]
+
     
 
     # ======================================================================================

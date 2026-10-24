@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from datetime import date
 
 from PyQt6.QtCore import QDate
@@ -17,6 +18,9 @@ from PyQt6.QtWidgets import (
 
 from expense_manager.database.schema import CATEGORIES
 from expense_manager.models.expense import Expense
+from expense_manager.views.vendor_autocomplete import (
+    configure_vendor_autocomplete,
+)
 # ==========================================================================================
 # ==========================================================================================
 
@@ -31,7 +35,11 @@ from expense_manager.models.expense import Expense
 class ExpenseDialog(QDialog):
     """Collect information for a new expense transaction."""
 
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent=None,
+        vendors: Iterable[str] = (),
+    ):
         super().__init__(parent)
 
         self.setWindowTitle("Add Expense")
@@ -43,6 +51,7 @@ class ExpenseDialog(QDialog):
         self.purchase_date.setDisplayFormat("yyyy-MM-dd")
 
         self.vendor = QLineEdit()
+        configure_vendor_autocomplete(self.vendor, vendors)
 
         self.cost = QDoubleSpinBox()
         self.cost.setDecimals(2)
@@ -116,6 +125,7 @@ class ExpenseDialog(QDialog):
             validated=self.validated.isChecked(),
             description=self.description.toPlainText() or None,
         )
+
 
 # ==========================================================================================
 # ==========================================================================================
