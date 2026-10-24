@@ -14,6 +14,7 @@ from expense_manager.database.connection import (
 from expense_manager.database.repository import ExpenseRepository
 from expense_manager.database.validation import validate_schema
 from expense_manager.views.expense_dialog import ExpenseDialog
+from expense_manager.views.expense_summary_dialog import ExpenseSummaryDialog
 from expense_manager.views.main_window import MainWindow
 # ==========================================================================================
 # ==========================================================================================
@@ -26,7 +27,7 @@ from expense_manager.views.main_window import MainWindow
 # ==========================================================================================
 
 class ExpenseController:
-    """Coordinate database operations and expense editing."""
+    """Coordinate database operations, expense editing, and reports."""
 
     def __init__(self, window: MainWindow):
         self.window = window
@@ -56,6 +57,11 @@ class ExpenseController:
             self.delete_expense
         )
 
+        # Connect the reporting action.
+        self.window.expense_summary_action.triggered.connect(
+            self.show_expense_summary
+        )
+
     def _update_actions(self) -> None:
         """Enable database-dependent actions appropriately."""
         enabled = self.repository is not None
@@ -66,6 +72,7 @@ class ExpenseController:
             self.window.save_action,
             self.window.discard_action,
             self.window.validate_action,
+            self.window.expense_summary_action,
         ):
             action.setEnabled(enabled)
 
@@ -82,6 +89,7 @@ class ExpenseController:
             | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
+
         return answer == QMessageBox.StandardButton.Yes
 
     def _activate_database(
@@ -106,6 +114,10 @@ class ExpenseController:
             f"Expense Manager - {path.name}"
         )
 
+    # ======================================================================================
+    # Database Operations
+    # ======================================================================================
+
     def new_database(self) -> None:
         """Create and open a user-named SQLite database."""
         if not self.confirm_discard():
@@ -115,7 +127,8 @@ class ExpenseController:
             self.window,
             "Create Expense Database",
             "",
-            "SQLite Database (*.db *.sqlite *.sqlite3)",
+            "SQLite Database (*.db);;"
+            "Other SQLite (*.sqlite *.sqlite3)",
         )
 
         if not filename:
@@ -198,6 +211,10 @@ class ExpenseController:
             f"{len(expenses)} expenses loaded"
         )
 
+    # ======================================================================================
+    # Expense Editing
+    # ======================================================================================
+
     def add_expense(self) -> None:
         """Add a new expense to the working table."""
         if self.repository is None:
@@ -278,11 +295,89 @@ class ExpenseController:
             "Changes saved successfully"
         )
 
+    # ======================================================================================
+    # Expense Reporting
+    # ======================================================================================
+
+    def show_expense_summary(self) -> None:
+        """Open the expense summary reporting dialog."""
+        if self.repository is None:
+            self.window.show_error(
+                "No Database",
+                "Open or create a database before generating a report.",
+            )
+            return
+
+        if self.model.has_changes():
+            QMessageBox.information(
+                self.window,
+                "Unsaved Changes",
+                "The report uses saved database records only.\n\n"
+                "Any unsaved expense changes will not appear "
+                "in the report.",
+            )
+
+        dialog = ExpenseSummaryDialog(self.window)
+
+        dialog.generate_button.clicked.connect(
+            lambda checked=False: self.generate_expense_summary(dialog)
+        )
+
+        # Populate the report using the dialog's default dates.
+        self.generate_expense_summary(dialog)
+
+        # Keep the dialog open until the user closes it.
+        dialog.exec()
+
+    def generate_expense_summary(
+        self,
+        dialog: ExpenseSummaryDialog,
+    ) -> None:
+        """Retrieve and display totals for the selected date range."""
+        if self.repository is None:
+            return
+
+        start_date, end_date = dialog.get_date_range()
+
+        if start_date > end_date:
+            QMessageBox.warning(
+                dialog,
+                "Invalid Date Range",
+                "The start date cannot be later than the end date.",
+            )
+            return
+
+        try:
+            summaries = self.repository.get_expense_summary(
+                start_date,
+                end_date,
+            )
+
+        except (sqlite3.Error, ValueError) as exc:
+            QMessageBox.critical(
+                dialog,
+                "Report Generation Failed",
+                str(exc),
+            )
+            return
+
+        dialog.display_summary(summaries)
+
+        if not summaries:
+            dialog.grand_total_label.setText(
+                "Net Total: $0.00 (No transactions)"
+            )
+
+    # ======================================================================================
+    # Application Shutdown
+    # ======================================================================================
+
     def close(self) -> None:
         """Close the active database connection."""
         if self.connection is not None:
             self.connection.close()
             self.connection = None
+            self.repository = None
 
 # ==========================================================================================
 # ==========================================================================================

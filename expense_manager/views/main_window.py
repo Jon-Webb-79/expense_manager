@@ -1,10 +1,9 @@
-from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QMainWindow,
+    QMessageBox,
     QTableView,
     QToolBar,
-    QAbstractItemView,
-    QMessageBox,
 )
 
 from expense_manager.models.expense_table_model import ExpenseTableModel
@@ -46,6 +45,7 @@ class MainWindow(QMainWindow):
         self.table.horizontalHeader().setStretchLastSection(True)
 
         self.setCentralWidget(self.table)
+
         self._create_actions()
         self._create_menus()
         self._create_toolbar()
@@ -56,27 +56,39 @@ class MainWindow(QMainWindow):
         self.confirm_close = lambda: True
 
     def _create_actions(self):
-        """Create application actions."""
-        file_menu = self.menuBar().addMenu("File")
-        self.file_menu = file_menu
+        """Create application menus and actions."""
+        self.file_menu = self.menuBar().addMenu("File")
 
-        self.new_action = file_menu.addAction("New Database...")
-        self.open_action = file_menu.addAction("Open Database...")
-        self.validate_action = file_menu.addAction(
+        self.new_action = self.file_menu.addAction("New Database...")
+        self.open_action = self.file_menu.addAction("Open Database...")
+        self.validate_action = self.file_menu.addAction(
             "Validate Database Schema"
         )
-        file_menu.addSeparator()
-        self.save_action = file_menu.addAction("Save Changes")
-        self.discard_action = file_menu.addAction("Discard Changes")
-        file_menu.addSeparator()
-        self.exit_action = file_menu.addAction("Exit")
+
+        self.file_menu.addSeparator()
+
+        self.save_action = self.file_menu.addAction("Save Changes")
+        self.discard_action = self.file_menu.addAction(
+            "Discard Changes"
+        )
+
+        self.file_menu.addSeparator()
+        self.exit_action = self.file_menu.addAction("Exit")
 
         self.edit_menu = self.menuBar().addMenu("Edit")
+
         self.add_action = self.edit_menu.addAction("Add Expense")
         self.delete_action = self.edit_menu.addAction(
             "Delete Selected Expense"
         )
 
+        # Reporting menu.
+        self.reports_menu = self.menuBar().addMenu("Reports")
+        self.expense_summary_action = self.reports_menu.addAction(
+            "Expense Summary..."
+        )
+
+        # Keyboard shortcuts.
         self.save_action.setShortcut("Ctrl+S")
         self.add_action.setShortcut("Ctrl+N")
         self.delete_action.setShortcut("Delete")
@@ -102,6 +114,7 @@ class MainWindow(QMainWindow):
     def selected_row(self) -> int | None:
         """Return the selected model row."""
         index = self.table.currentIndex()
+
         return index.row() if index.isValid() else None
 
     def show_error(self, title: str, message: str) -> None:

@@ -1,7 +1,8 @@
 import sqlite3
-from dataclasses import replace
+from datetime import date
 
 from expense_manager.models.expense import Expense
+from expense_manager.models.expense_summary import ExpenseSummary
 
 from .schema import CATEGORIES
 # ==========================================================================================
@@ -14,9 +15,8 @@ from .schema import CATEGORIES
 # ==========================================================================================
 # ==========================================================================================
 
-
 class ExpenseRepository:
-    """Provide CRUD operations for expense records."""
+    """Provide CRUD and reporting operations for expense records."""
 
     def __init__(self, connection: sqlite3.Connection) -> None:
         """Initialize the repository.
@@ -65,6 +65,10 @@ class ExpenseRepository:
             raise ValueError(
                 "Validated must be a boolean"
             )
+
+    # ======================================================================================
+    # CRUD Operations
+    # ======================================================================================
 
     def add_expense(self, expense: Expense) -> int:
         """Insert an expense and return its database ID.
@@ -186,6 +190,80 @@ class ExpenseRepository:
         )
 
         return cursor.rowcount > 0
+
+    # ======================================================================================
+    # Reporting Operations
+    # ======================================================================================
+
+    def get_expense_summary(
+        self,
+        start_date: str,
+        end_date: str,
+    ) -> list[ExpenseSummary]:
+        """Calculate expense totals grouped by type and subtype.
+
+        The reporting period includes both start_date and end_date.
+        Dates must use ISO 8601 format (YYYY-MM-DD).
+
+        Costs are summed as signed integer cents.
+
+        Args:
+            start_date: First purchase date to include.
+            end_date: Last purchase date to include.
+
+        Returns:
+            One ExpenseSummary per type/subtype combination
+            containing at least one transaction.
+
+        Raises:
+            ValueError: If either date is invalid or the date
+                range is reversed.
+        """
+        try:
+            start = date.fromisoformat(start_date)
+            end = date.fromisoformat(end_date)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "Dates must use YYYY-MM-DD format"
+            ) from exc
+
+        if (
+            start.isoformat() != start_date
+            or end.isoformat() != end_date
+        ):
+            raise ValueError(
+                "Dates must use YYYY-MM-DD format"
+            )
+
+        if start > end:
+            raise ValueError(
+                "Start date cannot be later than end date"
+            )
+
+        rows = self.connection.execute(
+            """
+            SELECT
+                type,
+                sub_type,
+                SUM(cost) AS total_cents,
+                COUNT(*) AS transaction_count
+            FROM expense
+            WHERE purchase_date BETWEEN ? AND ?
+            GROUP BY type, sub_type
+            ORDER BY type, sub_type
+            """,
+            (start_date, end_date),
+        ).fetchall()
+
+        return [
+            ExpenseSummary(
+                type=row["type"],
+                sub_type=row["sub_type"],
+                total_cents=row["total_cents"],
+                transaction_count=row["transaction_count"],
+            )
+            for row in rows
+        ]
 
 
 # ==========================================================================================
