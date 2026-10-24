@@ -1,20 +1,97 @@
 
 # ==========================================================================================
-# ==========================================================================================
-
 # File:    schema.py
-# Date:    October 21, 2026
+# Date:    October 24, 2026
 # Author:  Jonathan A. Webb
-# Purpose: Defines the database tables, columns, constraints, and indexes
+# Purpose: Defines database tables, constraints, and indexes
 # ==========================================================================================
-# ==========================================================================================
-# Insert Code here
 
 """SQLite schema definitions for the Expense Manager."""
 
-SCHEMA_VERSION = 1
+import sqlite3
 
-CREATE_EXPENSE_TABLE = """
+SCHEMA_VERSION = 2
+
+CATEGORIES = {
+    "FOOD": (
+        "GROCERIES",
+        "RESTAURANT",
+    ),
+    "AUTO": (
+        "FUEL",
+        "MAINTENANCE",
+        "REPAIRS",
+        "INSURANCE",
+        "REGISTRATION",
+        "MISC",
+    ),
+    "TRAVEL": (
+        "LODGING",
+        "TRANSPORTATION",
+        "FOOD",
+        "ACTIVITIES",
+        "MISC",
+    ),
+    "BILLS": (
+        "PHONE",
+        "ELECTRICITY",
+        "GAS",
+        "INSURANCE",
+        "HOUSING",
+        "MISC",
+    ),
+    "BENEFITS": (
+        "MEDICAL_INSURANCE",
+        "DENTAL_INSURANCE",
+        "VISION_INSURANCE",
+        "AD_AND_D",
+        "CRITICAL_ILLNESS",
+        "HOSPITAL_INDEMNITY",
+        "HSA",
+        "401k",
+    ),
+    "TAXES": (
+        "INCOME_TAX",
+        "STATE_TAX",
+        "MEDICAID",
+        "MEDICARE",
+        "SOCIAL_SECURITY",
+    ),
+    "PAYCHECK": ("NA",),
+    "MEDICAL": (
+        "DOCTOR",
+        "HOSPITAL",
+        "DRUGS",
+    ),
+    "MISC": ("NA",),
+    "ALCOHOL": ("NA",),
+}
+
+
+def _sql_string(value: str) -> str:
+    """Quote a string literal for generated SQL."""
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _sql_values(values) -> str:
+    """Build a comma-separated list of SQL string literals."""
+    return ", ".join(_sql_string(value) for value in values)
+
+
+def _type_subtype_constraint() -> str:
+    """Generate the valid Type/Subtype constraint."""
+    conditions = []
+
+    for expense_type, subtypes in CATEGORIES.items():
+        conditions.append(
+            f"(type = {_sql_string(expense_type)} "
+            f"AND sub_type IN ({_sql_values(subtypes)}))"
+        )
+
+    return "\n        OR ".join(conditions)
+
+
+CREATE_EXPENSE_TABLE = f"""
 CREATE TABLE expense (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
@@ -31,11 +108,7 @@ CREATE TABLE expense (
         CHECK (typeof(cost) = 'integer'),
 
     type TEXT NOT NULL
-        CHECK (type IN (
-            'FOOD', 'GAS', 'TRAVEL', 'AUTO',
-            'BILLS', 'TAXES', '401K', 'PAYCHECK',
-            'MEDICAL', 'MISC', 'ALCOHOL'
-        )),
+        CHECK (type IN ({_sql_values(CATEGORIES.keys())})),
 
     sub_type TEXT NOT NULL DEFAULT 'NA',
 
@@ -45,39 +118,15 @@ CREATE TABLE expense (
             AND validated IN (0, 1)
         ),
 
-    description TEXT,
+    description TEXT NOT NULL DEFAULT 'NA',
 
     CONSTRAINT valid_type_subtype
     CHECK (
-        (type = 'FOOD'
-            AND sub_type IN ('GROCERIES', 'RESTAURANT'))
-
-        OR (type = 'BILLS'
-            AND sub_type IN (
-                'PHONE', 'ELECTRICITY', 'GAS',
-                'INSURANCE', 'HOUSING', 'MISC'
-            ))
-
-        OR (type = 'TAXES'
-            AND sub_type IN (
-                'INCOME_TAX', 'STATE_TAX',
-                'MEDICAID', 'MEDICARE',
-                'SOCIAL_SECURITY'
-            ))
-
-        OR (type = 'MEDICAL'
-            AND sub_type IN (
-                'DOCTOR', 'HOSPITAL', 'DRUGS'
-            ))
-
-        OR (type IN (
-                'GAS', 'TRAVEL', 'AUTO', '401K',
-                'PAYCHECK', 'MISC', 'ALCOHOL'
-            )
-            AND sub_type = 'NA')
+        {_type_subtype_constraint()}
     )
 )
 """
+
 
 CREATE_INDEXES = (
     """
@@ -94,38 +143,9 @@ CREATE_INDEXES = (
     """,
 )
 
-CATEGORIES = {
-    "FOOD": ("GROCERIES", "RESTAURANT"),
-    "GAS": ("NA",),
-    "TRAVEL": ("NA",),
-    "AUTO": ("NA",),
-    "BILLS": (
-        "PHONE", "ELECTRICITY", "GAS",
-        "INSURANCE", "HOUSING", "MISC",
-    ),
-    "TAXES": (
-        "INCOME_TAX", "STATE_TAX",
-        "MEDICAID", "MEDICARE",
-        "SOCIAL_SECURITY",
-    ),
-    "401K": ("NA",),
-    "PAYCHECK": ("NA",),
-    "MEDICAL": ("DOCTOR", "HOSPITAL", "DRUGS"),
-    "MISC": ("NA",),
-    "ALCOHOL": ("NA",),
-}
 
-
-def create_schema(connection):
-    """Create the expense schema on a new database connection.
-
-    Args:
-        connection: An open sqlite3.Connection.
-
-    Raises:
-        sqlite3.Error: If schema creation fails.
-    """
-    import sqlite3
+def create_schema(connection: sqlite3.Connection) -> None:
+    """Create the approved expense schema in a new database."""
 
     if not isinstance(connection, sqlite3.Connection):
         raise TypeError("Expected a sqlite3.Connection")

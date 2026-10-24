@@ -130,7 +130,7 @@ class ExpenseRepository:
                 expense.type,
                 expense.sub_type,
                 int(expense.validated),
-                expense.description,
+                (expense.description or "").strip() or "NA",
             ),
         )
 
@@ -204,7 +204,7 @@ class ExpenseRepository:
                 expense.type,
                 expense.sub_type,
                 int(expense.validated),
-                expense.description,
+                (expense.description or "").strip() or "NA",
                 expense.id,
             ),
         )

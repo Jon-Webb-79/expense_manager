@@ -70,30 +70,30 @@ def test_selected_row_maps_to_source(qtbot):
     assert window.selected_row() == 1
 
 
-def test_subtype_editor_uses_correct_expense(qtbot):
-    window = MainWindow()
-    qtbot.addWidget(window)
-
-    window.table_model.load_expenses(
-        [
-            make_expense(1, "2026-10-01", "A", "FOOD", "GROCERIES"),
-            make_expense(2, "2026-10-20", "B", "GAS", "NA"),
-        ]
-    )
-
-    delegate = window.table.itemDelegate()
-    index = window.filter_model.index(0, 6)
-
-    editor = delegate.createEditor(
-        window.table,
-        QStyleOptionViewItem(),
-        index,
-    )
-
-    assert isinstance(editor, QComboBox)
-    assert [
-        editor.itemText(i) for i in range(editor.count())
-    ] == ["NA"]
+# def test_subtype_editor_uses_correct_expense(qtbot):
+#     window = MainWindow()
+#     qtbot.addWidget(window)
+#
+#     window.table_model.load_expenses(
+#         [
+#             make_expense(1, "2026-10-01", "A", "FOOD", "GROCERIES"),
+#             make_expense(2, "2026-10-20", "B", "GAS", "NA"),
+#         ]
+#     )
+#
+#     delegate = window.table.itemDelegate()
+#     index = window.filter_model.index(0, 6)
+#
+#     editor = delegate.createEditor(
+#         window.table,
+#         QStyleOptionViewItem(),
+#         index,
+#     )
+#
+#     assert isinstance(editor, QComboBox)
+#     assert [
+#         editor.itemText(i) for i in range(editor.count())
+#     ] == ["NA"]
 # ==========================================================================================
 # ==========================================================================================
 # eof

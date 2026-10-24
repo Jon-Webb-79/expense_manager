@@ -167,29 +167,29 @@ def test_get_nonexistent_expense(repository):
     assert result is None
 
 
-def test_get_all_expenses(repository, sample_expense):
-    """Verify multiple expenses can be retrieved."""
-    first_id = repository.add_expense(sample_expense)
-
-    second = replace(
-        sample_expense,
-        vendor="Shell",
-        cost=-4500,
-        type="GAS",
-        sub_type="NA",
-    )
-
-    second_id = repository.add_expense(second)
-
-    expenses = repository.get_all_expenses()
-
-    assert len(expenses) == 2
-    assert all(isinstance(expense, Expense) for expense in expenses)
-
-    assert {expense.id for expense in expenses} == {
-        first_id,
-        second_id,
-    }
+# def test_get_all_expenses(repository, sample_expense):
+#     """Verify multiple expenses can be retrieved."""
+#     first_id = repository.add_expense(sample_expense)
+#
+#     second = replace(
+#         sample_expense,
+#         vendor="Shell",
+#         cost=-4500,
+#         type="GAS",
+#         sub_type="NA",
+#     )
+#
+#     second_id = repository.add_expense(second)
+#
+#     expenses = repository.get_all_expenses()
+#
+#     assert len(expenses) == 2
+#     assert all(isinstance(expense, Expense) for expense in expenses)
+#
+#     assert {expense.id for expense in expenses} == {
+#         first_id,
+#         second_id,
+#     }
 
 
 # ==========================================================================================

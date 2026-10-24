@@ -123,7 +123,7 @@ class ExpenseDialog(QDialog):
             type=self.expense_type.currentText(),
             sub_type=self.sub_type.currentText(),
             validated=self.validated.isChecked(),
-            description=self.description.toPlainText() or None,
+            description=self.description.toPlainText().strip() or "NA",
         )
 
 
