@@ -3,9 +3,11 @@ from dataclasses import replace
 
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PyQt6.QtGui import QColor
 
 from expense_manager.database.schema import CATEGORIES
 from expense_manager.models.expense import Expense
+
 # ==========================================================================================
 # ==========================================================================================
 
@@ -152,6 +154,19 @@ class ExpenseTableModel(QAbstractTableModel):
                     if value
                     else "Expense has not been validated"
                 )
+
+        # Color the Cost column according to the transaction amount.
+        if role == Qt.ItemDataRole.ForegroundRole:
+            if index.column() == 4:
+                cost = self.expenses[index.row()].cost
+
+                if cost < 0:
+                    return QColor("#C62828")  # Red: expense
+
+                if cost > 0:
+                    return QColor("#2E7D32")  # Green: income or refund
+
+            return None
 
         return None
 

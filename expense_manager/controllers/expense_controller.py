@@ -47,6 +47,9 @@ class ExpenseController:
         self.window.confirm_close = self.confirm_discard
 
         self._connect_actions()
+        self.window.tabs.currentChanged.connect(
+            self._update_actions
+        )
         self._update_actions()
 
     def _connect_actions(self) -> None:
@@ -79,20 +82,28 @@ class ExpenseController:
             self.show_expense_summary
         )
 
-    def _update_actions(self) -> None:
-        """Enable database-dependent actions appropriately."""
-        enabled = self.repository is not None
+    def _update_actions(self, index: int | None = None) -> None:
+        """Enable actions according to database and tab selection."""
+        database_loaded = self.repository is not None
+        expenses_selected = self.window.tabs.currentIndex() == 0
 
+        # Actions available whenever a database is open.
         for action in (
-            self.window.add_action,
-            self.window.delete_action,
             self.window.save_action,
             self.window.discard_action,
             self.window.validate_action,
             self.window.account_settings_action,
             self.window.expense_summary_action,
         ):
-            action.setEnabled(enabled)
+            action.setEnabled(database_loaded)
+
+        # Expense editing is available only on the Expenses tab.
+        self.window.add_action.setEnabled(
+            database_loaded and expenses_selected
+        )
+        self.window.delete_action.setEnabled(
+            database_loaded and expenses_selected
+        )
 
     def confirm_discard(self) -> bool:
         """Ask permission before discarding unsaved edits."""
@@ -116,20 +127,20 @@ class ExpenseController:
         connection: sqlite3.Connection,
         path: Path,
     ) -> None:
-        """Activate a database and recalculate its daily balances."""
+        """Activate a database and load expenses and daily balances."""
         old_connection = self.connection
 
         new_repository = ExpenseRepository(connection)
         new_account_repository = AccountRepository(connection)
 
-        # Recalculate before replacing the active database.
-        # The account may not be configured yet; in that case
-        # recalculate_balances() safely does nothing.
         try:
+            # Recalculate balances when the database is opened.
             with connection:
                 new_account_repository.recalculate_balances()
 
+            # Load records before replacing the active connection.
             expenses = new_repository.get_all_expenses()
+            balances = new_account_repository.get_daily_balances()
 
         except Exception:
             connection.close()
@@ -140,7 +151,10 @@ class ExpenseController:
         self.account_repository = new_account_repository
         self.database_path = path
 
+        # Populate both spreadsheet models.
         self.model.load_expenses(expenses)
+        self.window.daily_balance_model.load_balances(balances)
+
         self._update_actions()
 
         if old_connection is not None and old_connection is not connection:
@@ -251,6 +265,18 @@ class ExpenseController:
             f"{len(expenses)} expenses loaded"
         )
 
+
+    def refresh_daily_balances(self) -> None:
+        """Reload calculated daily balances from SQLite."""
+        if self.account_repository is None:
+            self.window.daily_balance_model.load_balances([])
+            return
+
+        balances = self.account_repository.get_daily_balances()
+
+        self.window.daily_balance_model.load_balances(balances)
+
+
     # ======================================================================================
     # Expense Editing
     # ======================================================================================
@@ -293,11 +319,7 @@ class ExpenseController:
             self.refresh_expenses()
 
     def save_changes(self) -> None:
-        """Commit all pending inserts, updates, and deletions.
-
-        Recalculate daily account balances as part of the same
-        database transaction.
-        """
+        """Commit expense changes and refresh daily account balances."""
         if self.connection is None or self.repository is None:
             return
 
@@ -331,11 +353,7 @@ class ExpenseController:
                     elif expense != original.get(expense.id):
                         self.repository.update_expense(expense)
 
-                # Recalculate daily account balances after all
-                # expense changes have been applied.
-                #
-                # If the account has not yet been configured,
-                # recalculate_balances() will do nothing.
+                # Recalculate daily balances within the same transaction.
                 if self.account_repository is not None:
                     self.account_repository.recalculate_balances()
 
@@ -346,15 +364,16 @@ class ExpenseController:
             )
             return
 
-        # Reload the saved expense records.
+        # Reload both spreadsheets after a successful commit.
         self.refresh_expenses()
+        self.refresh_daily_balances()
 
         self.window.statusBar().showMessage(
             "Changes saved successfully"
         )
 
     def show_account_settings(self) -> None:
-        """Display and save the account configuration."""
+        """Display, save, and refresh the account configuration."""
         if self.connection is None or self.account_repository is None:
             self.window.show_error(
                 "No Database",
@@ -363,7 +382,6 @@ class ExpenseController:
             return
 
         try:
-            # Retrieve existing settings, if any.
             account = self.account_repository.get_account()
 
         except sqlite3.Error as exc:
@@ -373,7 +391,6 @@ class ExpenseController:
             )
             return
 
-        # Display the dialog with existing settings.
         dialog = AccountSettingsDialog(
             parent=self.window,
             account=account,
@@ -382,14 +399,11 @@ class ExpenseController:
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
-        # Retrieve the validated settings.
         name, start_date, opening_balance = (
             dialog.get_account_settings()
         )
 
         try:
-            # Save the account settings and recalculate
-            # daily balances in one transaction.
             with self.connection:
                 self.account_repository.configure_account(
                     name=name,
@@ -403,6 +417,9 @@ class ExpenseController:
                 str(exc),
             )
             return
+
+        # Refresh the Daily Balances tab after account changes.
+        self.refresh_daily_balances()
 
         self.window.statusBar().showMessage(
             "Account settings saved successfully"

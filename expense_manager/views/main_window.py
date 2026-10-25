@@ -1,4 +1,4 @@
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QSortFilterProxyModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -6,10 +6,14 @@ from PyQt6.QtWidgets import (
     QMenu,
     QMessageBox,
     QTableView,
+    QTabWidget,
     QToolBar,
 )
 
 from expense_manager.database.schema import CATEGORIES
+from expense_manager.models.daily_balance_table_model import (
+    DailyBalanceTableModel,
+)
 from expense_manager.models.expense_filter_proxy_model import (
     ExpenseFilterProxyModel,
 )
@@ -30,7 +34,7 @@ from expense_manager.views.expense_filter_dialogs import (
 # ==========================================================================================
 
 class MainWindow(QMainWindow):
-    """Display and filter the expense table."""
+    """Display and filter expense and daily balance tables."""
 
     PURCHASE_DATE_COLUMN = 2
     VENDOR_COLUMN = 3
@@ -42,6 +46,10 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Expense Manager")
         self.resize(1250, 700)
+
+        # ------------------------------------------------------------------
+        # Expense table and filtering model
+        # ------------------------------------------------------------------
 
         self.table_model = ExpenseTableModel(self)
 
@@ -75,14 +83,81 @@ class MainWindow(QMainWindow):
             self.show_header_filter_menu
         )
 
-        self.setCentralWidget(self.table)
+        # ------------------------------------------------------------------
+        # Daily balance table and sorting model
+        # ------------------------------------------------------------------
+
+        self.daily_balance_model = DailyBalanceTableModel(self)
+
+        self.daily_balance_proxy = QSortFilterProxyModel(self)
+        self.daily_balance_proxy.setSourceModel(
+            self.daily_balance_model
+        )
+        self.daily_balance_proxy.setSortRole(
+            Qt.ItemDataRole.EditRole
+        )
+
+        self.daily_balance_table = QTableView()
+        self.daily_balance_table.setModel(
+            self.daily_balance_proxy
+        )
+
+        self.daily_balance_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.daily_balance_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.daily_balance_table.setAlternatingRowColors(True)
+
+        self.daily_balance_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
+
+        self.daily_balance_table.setSortingEnabled(True)
+        self.daily_balance_table.sortByColumn(
+            0,
+            Qt.SortOrder.DescendingOrder,
+        )
+
+        self.daily_balance_table.horizontalHeader().setStretchLastSection(
+            True
+        )
+
+        # ------------------------------------------------------------------
+        # Tabbed central widget
+        # ------------------------------------------------------------------
+
+        self.tabs = QTabWidget(self)
+
+        self.tabs.addTab(
+            self.table,
+            "Expenses",
+        )
+
+        self.tabs.addTab(
+            self.daily_balance_table,
+            "Daily Balances",
+        )
+
+        self.setCentralWidget(self.tabs)
+
+        # ------------------------------------------------------------------
+        # Menus, toolbar, and status bar
+        # ------------------------------------------------------------------
 
         self._create_actions()
         self._create_menus()
         self._create_toolbar()
 
         self.statusBar().showMessage("No database loaded")
+
+        # Callback supplied by the controller.
         self.confirm_close = lambda: True
+
+    # ======================================================================================
+    # Menu and Toolbar Configuration
+    # ======================================================================================
 
     def _create_actions(self):
         """Create application menus and actions."""
@@ -90,15 +165,21 @@ class MainWindow(QMainWindow):
         # File menu.
         self.file_menu = self.menuBar().addMenu("File")
 
-        self.new_action = self.file_menu.addAction("New Database...")
-        self.open_action = self.file_menu.addAction("Open Database...")
+        self.new_action = self.file_menu.addAction(
+            "New Database..."
+        )
+        self.open_action = self.file_menu.addAction(
+            "Open Database..."
+        )
         self.validate_action = self.file_menu.addAction(
             "Validate Database Schema"
         )
 
         self.file_menu.addSeparator()
 
-        self.save_action = self.file_menu.addAction("Save Changes")
+        self.save_action = self.file_menu.addAction(
+            "Save Changes"
+        )
         self.discard_action = self.file_menu.addAction(
             "Discard Changes"
         )
@@ -109,16 +190,18 @@ class MainWindow(QMainWindow):
         # Edit menu.
         self.edit_menu = self.menuBar().addMenu("Edit")
 
-        self.add_action = self.edit_menu.addAction("Add Expense")
+        self.add_action = self.edit_menu.addAction(
+            "Add Expense"
+        )
         self.delete_action = self.edit_menu.addAction(
             "Delete Selected Expense"
         )
 
         self.edit_menu.addSeparator()
+
         self.clear_filters_action = self.edit_menu.addAction(
             "Clear All Filters"
         )
-
         self.clear_filters_action.triggered.connect(
             self.clear_all_filters
         )
@@ -142,25 +225,33 @@ class MainWindow(QMainWindow):
         self.add_action.setShortcut("Ctrl+N")
         self.delete_action.setShortcut("Delete")
 
-        # Exit application.
+        # Application exit.
         self.exit_action.triggered.connect(self.close)
 
     def _create_menus(self):
+        """Reserved for additional menu configuration."""
         pass
 
     def _create_toolbar(self):
+        """Create the expense editing toolbar."""
         toolbar = QToolBar("Expense Actions", self)
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
 
         toolbar.addAction(self.add_action)
         toolbar.addAction(self.delete_action)
+
         toolbar.addSeparator()
+
         toolbar.addAction(self.save_action)
         toolbar.addAction(self.discard_action)
 
+    # ======================================================================================
+    # Expense Table Selection
+    # ======================================================================================
+
     def selected_row(self) -> int | None:
-        """Return the underlying source-model row."""
+        """Return the underlying expense source-model row."""
         proxy_index = self.table.currentIndex()
 
         if not proxy_index.isValid():
@@ -168,8 +259,12 @@ class MainWindow(QMainWindow):
 
         return self.filter_model.mapToSource(proxy_index).row()
 
+    # ======================================================================================
+    # Expense Column Filtering
+    # ======================================================================================
+
     def show_header_filter_menu(self, position):
-        """Display filtering commands for a column header."""
+        """Display filtering commands for an expense column header."""
         header = self.table.horizontalHeader()
         column = header.logicalIndexAt(position)
 
@@ -217,6 +312,7 @@ class MainWindow(QMainWindow):
             self.configure_subtype_filter()
 
     def configure_date_filter(self):
+        """Configure the expense purchase-date filter."""
         dialog = DateRangeFilterDialog(
             parent=self,
             start_date=self.filter_model._start_date,
@@ -229,6 +325,7 @@ class MainWindow(QMainWindow):
             self.update_filter_status()
 
     def configure_vendor_filter(self):
+        """Configure the expense vendor filter."""
         vendors = sorted(
             {
                 expense.vendor.strip()
@@ -256,6 +353,7 @@ class MainWindow(QMainWindow):
             self.update_filter_status()
 
     def configure_type_filter(self):
+        """Configure the expense type filter."""
         dialog = SelectionFilterDialog(
             title="Filter Type",
             label="Select an expense type:",
@@ -271,6 +369,7 @@ class MainWindow(QMainWindow):
             self.update_filter_status()
 
     def configure_subtype_filter(self):
+        """Configure the expense subtype filter."""
         expense_type = self.filter_model._expense_type
 
         if expense_type is not None:
@@ -299,7 +398,7 @@ class MainWindow(QMainWindow):
             self.update_filter_status()
 
     def clear_column_filter(self, column: int):
-        """Clear only the filter associated with one column."""
+        """Clear the filter associated with one expense column."""
         if column == self.PURCHASE_DATE_COLUMN:
             self.filter_model.set_date_filter(None, None)
 
@@ -315,12 +414,12 @@ class MainWindow(QMainWindow):
         self.update_filter_status()
 
     def clear_all_filters(self):
-        """Remove every active filter."""
+        """Remove all active expense filters."""
         self.filter_model.clear_filters()
         self.update_filter_status()
 
     def update_filter_status(self):
-        """Display the number of visible and total transactions."""
+        """Display the number of visible and total expenses."""
         visible = self.filter_model.rowCount()
         total = self.table_model.rowCount()
 
@@ -328,10 +427,16 @@ class MainWindow(QMainWindow):
             f"Showing {visible} of {total} expenses"
         )
 
+    # ======================================================================================
+    # Error Handling and Application Shutdown
+    # ======================================================================================
+
     def show_error(self, title: str, message: str) -> None:
+        """Display an error message."""
         QMessageBox.critical(self, title, message)
 
     def closeEvent(self, event):
+        """Confirm before closing with unsaved expense changes."""
         if self.confirm_close():
             event.accept()
         else:
