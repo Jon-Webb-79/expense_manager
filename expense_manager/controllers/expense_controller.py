@@ -11,11 +11,15 @@ from expense_manager.database.connection import (
     create_database,
     open_database,
 )
+from expense_manager.database.account_repository import AccountRepository
 from expense_manager.database.repository import ExpenseRepository
 from expense_manager.database.validation import validate_schema
 from expense_manager.views.expense_dialog import ExpenseDialog
 from expense_manager.views.expense_summary_dialog import ExpenseSummaryDialog
 from expense_manager.views.main_window import MainWindow
+from expense_manager.views.account_settings_dialog import (
+    AccountSettingsDialog,
+)
 # ==========================================================================================
 # ==========================================================================================
 
@@ -33,6 +37,7 @@ class ExpenseController:
         self.window = window
         self.connection: sqlite3.Connection | None = None
         self.repository: ExpenseRepository | None = None
+        self.account_repository: AccountRepository | None = None
         self.database_path: Path | None = None
 
         self.model = window.table_model
@@ -44,14 +49,17 @@ class ExpenseController:
         self._connect_actions()
         self._update_actions()
 
-
     def _connect_actions(self) -> None:
         """Connect view actions to controller methods."""
+
+        # Database operations.
         self.window.new_action.triggered.connect(self.new_database)
         self.window.open_action.triggered.connect(self.select_database)
         self.window.validate_action.triggered.connect(
             self.validate_database
         )
+
+        # Expense editing.
         self.window.save_action.triggered.connect(self.save_changes)
         self.window.discard_action.triggered.connect(
             self.discard_changes
@@ -61,7 +69,12 @@ class ExpenseController:
             self.delete_expense
         )
 
-        # Connect the reporting action.
+        # Account management.
+        self.window.account_settings_action.triggered.connect(
+            self.show_account_settings
+        )
+
+        # Expense reporting.
         self.window.expense_summary_action.triggered.connect(
             self.show_expense_summary
         )
@@ -76,6 +89,7 @@ class ExpenseController:
             self.window.save_action,
             self.window.discard_action,
             self.window.validate_action,
+            self.window.account_settings_action,
             self.window.expense_summary_action,
         ):
             action.setEnabled(enabled)
@@ -96,26 +110,48 @@ class ExpenseController:
 
         return answer == QMessageBox.StandardButton.Yes
 
+
     def _activate_database(
         self,
         connection: sqlite3.Connection,
         path: Path,
     ) -> None:
-        """Install a new connection after successful validation."""
+        """Activate a database and recalculate its daily balances."""
         old_connection = self.connection
 
+        new_repository = ExpenseRepository(connection)
+        new_account_repository = AccountRepository(connection)
+
+        # Recalculate before replacing the active database.
+        # The account may not be configured yet; in that case
+        # recalculate_balances() safely does nothing.
+        try:
+            with connection:
+                new_account_repository.recalculate_balances()
+
+            expenses = new_repository.get_all_expenses()
+
+        except Exception:
+            connection.close()
+            raise
+
         self.connection = connection
-        self.repository = ExpenseRepository(connection)
+        self.repository = new_repository
+        self.account_repository = new_account_repository
         self.database_path = path
 
-        self.refresh_expenses()
+        self.model.load_expenses(expenses)
         self._update_actions()
 
-        if old_connection is not None:
+        if old_connection is not None and old_connection is not connection:
             old_connection.close()
 
         self.window.setWindowTitle(
             f"Expense Manager - {path.name}"
+        )
+
+        self.window.statusBar().showMessage(
+            f"{len(expenses)} expenses loaded"
         )
 
     # ======================================================================================
@@ -257,7 +293,11 @@ class ExpenseController:
             self.refresh_expenses()
 
     def save_changes(self) -> None:
-        """Commit all pending inserts, updates, and deletions."""
+        """Commit all pending inserts, updates, and deletions.
+
+        Recalculate daily account balances as part of the same
+        database transaction.
+        """
         if self.connection is None or self.repository is None:
             return
 
@@ -278,6 +318,7 @@ class ExpenseController:
 
         try:
             with self.connection:
+
                 # Delete records removed from the table.
                 for expense_id in original.keys() - current.keys():
                     self.repository.delete_expense(expense_id)
@@ -290,6 +331,14 @@ class ExpenseController:
                     elif expense != original.get(expense.id):
                         self.repository.update_expense(expense)
 
+                # Recalculate daily account balances after all
+                # expense changes have been applied.
+                #
+                # If the account has not yet been configured,
+                # recalculate_balances() will do nothing.
+                if self.account_repository is not None:
+                    self.account_repository.recalculate_balances()
+
         except (sqlite3.Error, ValueError) as exc:
             self.window.show_error(
                 "Save Failed",
@@ -297,9 +346,66 @@ class ExpenseController:
             )
             return
 
+        # Reload the saved expense records.
         self.refresh_expenses()
+
         self.window.statusBar().showMessage(
             "Changes saved successfully"
+        )
+
+    def show_account_settings(self) -> None:
+        """Display and save the account configuration."""
+        if self.connection is None or self.account_repository is None:
+            self.window.show_error(
+                "No Database",
+                "Open or create a database before configuring an account.",
+            )
+            return
+
+        try:
+            # Retrieve existing settings, if any.
+            account = self.account_repository.get_account()
+
+        except sqlite3.Error as exc:
+            self.window.show_error(
+                "Account Settings Failed",
+                str(exc),
+            )
+            return
+
+        # Display the dialog with existing settings.
+        dialog = AccountSettingsDialog(
+            parent=self.window,
+            account=account,
+        )
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        # Retrieve the validated settings.
+        name, start_date, opening_balance = (
+            dialog.get_account_settings()
+        )
+
+        try:
+            # Save the account settings and recalculate
+            # daily balances in one transaction.
+            with self.connection:
+                self.account_repository.configure_account(
+                    name=name,
+                    start_date=start_date,
+                    opening_balance=opening_balance,
+                )
+
+        except (sqlite3.Error, ValueError) as exc:
+            self.window.show_error(
+                "Account Settings Failed",
+                str(exc),
+            )
+            return
+
+        self.window.statusBar().showMessage(
+            "Account settings saved successfully"
         )
 
     # ======================================================================================

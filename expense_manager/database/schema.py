@@ -10,7 +10,12 @@
 
 import sqlite3
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+
+
+# ==========================================================================================
+# Expense Categories
+# ==========================================================================================
 
 CATEGORIES = {
     "FOOD": (
@@ -68,6 +73,10 @@ CATEGORIES = {
 }
 
 
+# ==========================================================================================
+# SQL Helper Functions
+# ==========================================================================================
+
 def _sql_string(value: str) -> str:
     """Quote a string literal for generated SQL."""
     return "'" + value.replace("'", "''") + "'"
@@ -90,6 +99,10 @@ def _type_subtype_constraint() -> str:
 
     return "\n        OR ".join(conditions)
 
+
+# ==========================================================================================
+# Expense Table
+# ==========================================================================================
 
 CREATE_EXPENSE_TABLE = f"""
 CREATE TABLE expense (
@@ -128,6 +141,93 @@ CREATE TABLE expense (
 """
 
 
+# ==========================================================================================
+# Account Table
+# ==========================================================================================
+
+# Each database represents one financial account.
+#
+# The account ID is restricted to 1 to enforce this rule.
+#
+# start_date:
+#     First day of expense record keeping.
+#
+# opening_balance:
+#     Account balance at the end of the day preceding
+#     start_date, expressed in integer cents.
+#
+# The account table is initially empty. The user will
+# configure the account through the GUI.
+
+CREATE_ACCOUNT_TABLE = """
+CREATE TABLE account (
+    id INTEGER PRIMARY KEY
+        CHECK (id = 1),
+
+    name TEXT NOT NULL DEFAULT 'Account'
+        CHECK (length(trim(name)) > 0),
+
+    start_date TEXT NOT NULL
+        CHECK (start_date = date(start_date, '+0 days')),
+
+    opening_balance INTEGER NOT NULL
+        CHECK (typeof(opening_balance) = 'integer')
+)
+"""
+
+
+# ==========================================================================================
+# Daily Balance Table
+# ==========================================================================================
+
+# Stores the calculated account balance for each day.
+#
+# account_id:
+#     References the single account in the database.
+#
+# balance_date:
+#     Date associated with the calculated balance.
+#
+# daily_change:
+#     Sum of all signed expense.cost values for that day.
+#
+# closing_balance:
+#     Previous day's closing balance plus daily_change.
+#
+# A record will be generated for every calendar day
+# beginning with account.start_date, including days
+# with no transactions.
+#
+# Records are calculated by the application rather than
+# entered directly by the user.
+
+CREATE_DAILY_BALANCE_TABLE = """
+CREATE TABLE daily_balance (
+    account_id INTEGER NOT NULL DEFAULT 1
+        CHECK (account_id = 1),
+
+    balance_date TEXT NOT NULL
+        CHECK (balance_date = date(balance_date, '+0 days')),
+
+    daily_change INTEGER NOT NULL
+        CHECK (typeof(daily_change) = 'integer'),
+
+    closing_balance INTEGER NOT NULL
+        CHECK (typeof(closing_balance) = 'integer'),
+
+    PRIMARY KEY (account_id, balance_date),
+
+    FOREIGN KEY (account_id)
+        REFERENCES account(id)
+        ON DELETE CASCADE
+)
+"""
+
+
+# ==========================================================================================
+# Database Indexes
+# ==========================================================================================
+
 CREATE_INDEXES = (
     """
     CREATE INDEX idx_expense_purchase_date
@@ -144,9 +244,28 @@ CREATE_INDEXES = (
 )
 
 
-def create_schema(connection: sqlite3.Connection) -> None:
-    """Create the approved expense schema in a new database."""
+# ==========================================================================================
+# Schema Creation
+# ==========================================================================================
 
+def create_schema(connection: sqlite3.Connection) -> None:
+    """Create the approved schema in a new database.
+
+    Creates the expense, account, and daily_balance tables,
+    along with the required indexes.
+
+    The account and daily_balance tables are initially empty.
+    Account configuration and daily balance calculations are
+    performed separately by the application.
+
+    Args:
+        connection: An open sqlite3.Connection.
+
+    Raises:
+        TypeError: If connection is not a SQLite connection.
+        RuntimeError: If a transaction is already active.
+        sqlite3.Error: If schema creation fails.
+    """
     if not isinstance(connection, sqlite3.Connection):
         raise TypeError("Expected a sqlite3.Connection")
 
@@ -157,7 +276,10 @@ def create_schema(connection: sqlite3.Connection) -> None:
 
     try:
         connection.execute("BEGIN IMMEDIATE")
+
         connection.execute(CREATE_EXPENSE_TABLE)
+        connection.execute(CREATE_ACCOUNT_TABLE)
+        connection.execute(CREATE_DAILY_BALANCE_TABLE)
 
         for statement in CREATE_INDEXES:
             connection.execute(statement)
@@ -165,6 +287,7 @@ def create_schema(connection: sqlite3.Connection) -> None:
         connection.execute(
             f"PRAGMA user_version = {SCHEMA_VERSION}"
         )
+
         connection.commit()
 
     except sqlite3.Error:

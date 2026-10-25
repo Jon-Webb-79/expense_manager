@@ -85,6 +85,9 @@ class MainWindow(QMainWindow):
         self.confirm_close = lambda: True
 
     def _create_actions(self):
+        """Create application menus and actions."""
+
+        # File menu.
         self.file_menu = self.menuBar().addMenu("File")
 
         self.new_action = self.file_menu.addAction("New Database...")
@@ -103,6 +106,7 @@ class MainWindow(QMainWindow):
         self.file_menu.addSeparator()
         self.exit_action = self.file_menu.addAction("Exit")
 
+        # Edit menu.
         self.edit_menu = self.menuBar().addMenu("Edit")
 
         self.add_action = self.edit_menu.addAction("Add Expense")
@@ -114,18 +118,31 @@ class MainWindow(QMainWindow):
         self.clear_filters_action = self.edit_menu.addAction(
             "Clear All Filters"
         )
+
         self.clear_filters_action.triggered.connect(
             self.clear_all_filters
         )
 
+        # Account menu.
+        self.account_menu = self.menuBar().addMenu("Account")
+
+        self.account_settings_action = self.account_menu.addAction(
+            "Account Settings..."
+        )
+
+        # Reports menu.
         self.reports_menu = self.menuBar().addMenu("Reports")
+
         self.expense_summary_action = self.reports_menu.addAction(
             "Expense Summary..."
         )
 
+        # Keyboard shortcuts.
         self.save_action.setShortcut("Ctrl+S")
         self.add_action.setShortcut("Ctrl+N")
         self.delete_action.setShortcut("Delete")
+
+        # Exit application.
         self.exit_action.triggered.connect(self.close)
 
     def _create_menus(self):
